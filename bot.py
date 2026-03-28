@@ -3,6 +3,7 @@ import os
 import random
 from pyrogram import Client, filters
 
+# ===== ENV =====
 api_id = int(os.environ.get("API_ID"))
 api_hash = os.environ.get("API_HASH")
 session = os.environ.get("SESSION")
@@ -10,6 +11,7 @@ session = os.environ.get("SESSION")
 MAIN_ID = int(os.environ.get("MAIN_ID"))
 TARGET_USERS = list(map(int, os.environ.get("TARGET_USERS").split(",")))
 
+# ===== CLIENT =====
 app = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=session)
 
 msg_map = {}
@@ -47,7 +49,10 @@ async def new_messages(client, message):
     if not forwarding:
         return
 
-    user_id = message.from_user.id if message.from_user else None
+    if not message.from_user:
+        return
+
+    user_id = message.from_user.id
 
     if user_id in TARGET_USERS:
 
@@ -75,22 +80,24 @@ async def reply_handler(client, message):
         if reply_id in msg_map:
             user = msg_map[reply_id]
 
-            await safe_send(user, message.text)
+            if message.text:
+                await safe_send(user, message.text)
 
 
 # ===== COMMANDS =====
 
 @app.on_message(filters.user(MAIN_ID) & filters.command("help"))
 async def help_cmd(client, message):
-    await message.reply_text("""
-Commands:
+    await message.reply_text(
+"""📌 Commands:
 /users
 /history
 /history <id>
 /send <id> message
 /forwardon
 /forwardoff
-""")
+"""
+    )
 
 
 @app.on_message(filters.user(MAIN_ID) & filters.command("users"))
@@ -116,7 +123,10 @@ async def history_cmd(client, message):
                 await safe_send(MAIN_ID, f"📜 {name}:\n{text}")
 
     else:
-        user = int(parts[1])
+        try:
+            user = int(parts[1])
+        except:
+            return await message.reply_text("Invalid user id")
 
         async for msg in app.get_chat_history(user, limit=5):
 
@@ -134,7 +144,11 @@ async def send_cmd(client, message):
     if len(parts) < 3:
         return await message.reply_text("Usage: /send id message")
 
-    user = int(parts[1])
+    try:
+        user = int(parts[1])
+    except:
+        return await message.reply_text("Invalid user id")
+
     text = parts[2]
 
     await safe_send(user, text)
@@ -155,15 +169,16 @@ async def on_cmd(client, message):
     await message.reply_text("✅ Forward ON")
 
 
-# ===== RUN =====
+# ===== MAIN =====
 async def main():
     await app.start()
     print("Userbot running...")
 
     await forward_unread()
 
-    await idle()
+    # keep alive forever
+    await asyncio.Event().wait()
 
 
-from pyrogram.idle import idle
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
